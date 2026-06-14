@@ -1,2 +1,0 @@
-# Yaseen
-WaBot public
