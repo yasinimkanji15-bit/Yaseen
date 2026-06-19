@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAS-TECH Pairing System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0b141a;
+            color: #e9edef;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #111b21;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid #222e35;
+        }
+        h2 {
+            color: #00a884;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+        }
+        p {
+            color: #8696a0;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        input {
+            width: 90%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #2a3942;
+            border-radius: 8px;
+            font-size: 16px;
+            background: #2a3942;
+            color: #fff;
+            outline: none;
+            text-align: center;
+        }
+        input:focus {
+            border-color: #00a884;
+        }
+        button {
+            background-color: #00a884;
+            color: #111b21;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 96%;
+            transition: 0.3s;
+        }
+        button:hover { 
+            background-color: #008069; 
+        }
+        .code-box {
+            margin-top: 25px;
+            padding: 15px;
+            background: #202c33;
+            border: 2px dashed #00a884;
+            border-radius: 8px;
+            font-size: 26px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: #00a884;
+            display: none;
+        }
+        .loading { 
+            color: #8696a0; 
+            display: none; 
+            margin-top: 15px; 
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>YAS-TECH PAIRING</h2>
+    <p>Enter your phone number with country code<br>(e.g., 2557XXXXXXXX)</p>
+    
+    <input type="text" id="phoneNumber" placeholder="2557XXXXXXXX">
+    <button onclick="getPairingCode()">Generate Code</button>
+
+    <div class="loading" id="loadingText">Generating pairing code, please wait...</div>
+    <div class="code-box" id="codeBox"></div>
+</div>
+
+<script>
+    async function getPairingCode() {
+        const phone = document.getElementById('phoneNumber').value;
+        const codeBox = document.getElementById('codeBox');
+        const loadingText = document.getElementById('loadingText');
+
+        if (!phone) {
+            alert('Please enter your phone number!');
+            return;
+        }
+
+        loadingText.style.display = 'block';
+        codeBox.style.display = 'none';
+
+        try {
+            // Using window.location.origin dynamically adjusts to your Render URL when deployed
+            const response = await fetch(`${window.location.origin}/api/pair`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone })
+            });
+
+            const data = await response.json();
+            loadingText.style.display = 'none';
+
+            if (data.code) {
+                codeBox.innerText = data.code;
+                codeBox.style.display = 'block';
+            } else if (data.error) {
+                alert(data.error);
+            }
+        } catch (error) {
+            loadingText.style.display = 'none';
+            alert('Failed to connect to the server!');
+        }
+    }
+</script>
+
+</body>
+</html>
