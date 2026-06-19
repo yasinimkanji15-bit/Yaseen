@@ -14,16 +14,16 @@ const cors = require("cors");
 
 // 1. IMPORT YOUR HANDLERS
 const settings = require('./settings');
-const { handleMessages } = require('./main'); // This is the engine
-const chatbot = require('./chatbot'); // LINE INAYO-IMPORT CHATBOT
+const { handleMessages } = require('./main'); 
+const chatbot = require('./chatbot'); 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serves the frontend from the 'public' folder
+app.use(express.static('public')); 
 
 const PORT = process.env.PORT || 3000;
-let globalSock = null; // Keeps a reference to the active socket connection
+let globalSock = null; 
 
 async function startYASEENBot() {
     const sessionDir = path.join(__dirname, 'session');
@@ -43,7 +43,7 @@ async function startYASEENBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    globalSock = sock; // Assign to global reference for the API endpoint
+    globalSock = sock; 
 
     // --- PAIRING CODE VIA TERMINAL (FALLBACK FOR OWNER) ---
     if (!sock.authState.creds.registered && settings.OWNER_NUMBER) {
@@ -117,12 +117,12 @@ async function startYASEENBot() {
 // --- EXPRESS API ENDPOINT FOR PAIRING SITE ---
 app.post('/api/pair', async (req, res) => {
     let { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Namba ya simu inahitajika!' });
+    if (!phone) return res.status(400).json({ error: 'Phone number is required!' });
 
     phone = phone.replace(/[^0-9]/g, '');
 
     if (!globalSock) {
-        return res.status(500).json({ error: 'Bot bado haijawa tayari kwenye server. Subiri sekunde chache!' });
+        return res.status(500).json({ error: 'Bot server is not ready yet. Please wait a few seconds!' });
     }
 
     try {
@@ -132,11 +132,11 @@ app.post('/api/pair', async (req, res) => {
             code = code?.match(/.{1,4}/g)?.join('-') || code;
             return res.json({ code: code });
         } else {
-            return res.json({ error: 'Bot tayari imeshaunganishwa na akaunti nyingine!' });
+            return res.json({ error: 'Bot is already connected to another account!' });
         }
     } catch (error) {
         console.error("API Pairing Error:", error);
-        return res.status(500).json({ error: 'Imeshindwa kuzalisha msimbo. Jaribu tena!' });
+        return res.status(500).json({ error: 'Failed to generate code. Please try again!' });
     }
 });
 
