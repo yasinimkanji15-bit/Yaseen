@@ -3,138 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YAS-TECH Pairing System</title>
+    <title>YAS-TECH PAIRING</title>
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
             background-color: #0b141a;
             color: #e9edef;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            min-height: 100vh;
+            padding: 20px;
         }
-        .container {
-            background: #111b21;
+
+        .card {
+            background-color: #111b21;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            width: 100%;
             max-width: 400px;
-            width: 90%;
+            text-align: center;
             border: 1px solid #222e35;
         }
-        h2 {
+
+        /* Catbox Logo Image Styling */
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .logo-container img {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #00a884;
+            box-shadow: 0 0 15px rgba(0, 168, 132, 0.4);
+        }
+
+        h1 {
             color: #00a884;
-            margin-bottom: 5px;
+            font-size: 24px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
             letter-spacing: 1px;
         }
+
         p {
             color: #8696a0;
             font-size: 14px;
             margin-bottom: 25px;
+            line-height: 1.5;
         }
-        input {
-            width: 90%;
-            padding: 12px;
+
+        .input-group {
             margin-bottom: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            color: #8696a0;
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            background-color: #2a3942;
             border: 1px solid #2a3942;
             border-radius: 8px;
-            font-size: 16px;
-            background: #2a3942;
             color: #fff;
+            font-size: 16px;
             outline: none;
+            transition: 0.3s;
             text-align: center;
+            letter-spacing: 1px;
         }
+
         input:focus {
             border-color: #00a884;
+            background-color: #37464f;
         }
+
         button {
+            width: 100%;
+            padding: 15px;
             background-color: #00a884;
             color: #111b21;
             border: none;
-            padding: 12px;
+            border-radius: 8px;
             font-size: 16px;
             font-weight: bold;
-            border-radius: 8px;
             cursor: pointer;
-            width: 96%;
             transition: 0.3s;
         }
-        button:hover { 
-            background-color: #008069; 
+
+        button:hover {
+            background-color: #008f72;
+            transform: translateY(-1px);
         }
-        .code-box {
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        /* Pairing Code Display Section */
+        .code-display {
             margin-top: 25px;
             padding: 15px;
-            background: #202c33;
-            border: 2px dashed #00a884;
+            background-color: #202c33;
             border-radius: 8px;
-            font-size: 26px;
-            font-weight: bold;
-            letter-spacing: 3px;
-            color: #00a884;
+            border: 1px dashed #00a884;
             display: none;
         }
-        .loading { 
-            color: #8696a0; 
-            display: none; 
-            margin-top: 15px; 
-            font-size: 14px;
+
+        .code-title {
+            font-size: 12px;
+            color: #8696a0;
+            margin-bottom: 5px;
+        }
+
+        .code-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #00a884;
+            letter-spacing: 4px;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>YAS-TECH PAIRING</h2>
-    <p>Enter your phone number with country code<br>(e.g., 2557XXXXXXXX)</p>
-    
-    <input type="text" id="phoneNumber" placeholder="2557XXXXXXXX">
-    <button onclick="getPairingCode()">Generate Code</button>
+    <div class="card">
+        <!-- Fetches your custom logo straight from Catbox -->
+        <div class="logo-container">
+            <img src="https://files.catbox.moe/038kef.jpg" alt="YAS-TECH">
+        </div>
 
-    <div class="loading" id="loadingText">Generating pairing code, please wait...</div>
-    <div class="code-box" id="codeBox"></div>
-</div>
+        <h1>YAS-TECH PAIRING</h1>
+        <p>Enter your WhatsApp phone number along with your country code (e.g., 2557XXXXXXXX) to generate your pairing code.</p>
 
-<script>
-    async function getPairingCode() {
-        const phone = document.getElementById('phoneNumber').value;
-        const codeBox = document.getElementById('codeBox');
-        const loadingText = document.getElementById('loadingText');
+        <div class="input-group">
+            <label for="phoneNumber">PHONE NUMBER</label>
+            <input type="number" id="phoneNumber" placeholder="2557XXXXXXXX">
+        </div>
 
-        if (!phone) {
-            alert('Please enter your phone number!');
-            return;
-        }
+        <button onclick="getPairingCode()">Generate Code</button>
 
-        loadingText.style.display = 'block';
-        codeBox.style.display = 'none';
+        <!-- Hidden container that toggles visible when fetching code -->
+        <div class="code-display" id="codeBox">
+            <div class="code-title">YOUR PAIRING CODE:</div>
+            <div class="code-value" id="pairCode">--------</div>
+        </div>
+    </div>
 
-        try {
-            // Using window.location.origin dynamically adjusts to your Render URL when deployed
-            const response = await fetch(`${window.location.origin}/api/pair`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone })
-            });
+    <script>
+        async function getPairingCode() {
+            const number = document.getElementById('phoneNumber').value.trim();
+            const codeBox = document.getElementById('codeBox');
+            const pairCode = document.getElementById('pairCode');
 
-            const data = await response.json();
-            loadingText.style.display = 'none';
-
-            if (data.code) {
-                codeBox.innerText = data.code;
-                codeBox.style.display = 'block';
-            } else if (data.error) {
-                alert(data.error);
+            if (!number) {
+                alert('Please enter a valid phone number!');
+                return;
             }
-        } catch (error) {
-            loadingText.style.display = 'none';
-            alert('Failed to connect to the server!');
-        }
-    }
-</script>
 
+            pairCode.innerText = "LOADING...";
+            codeBox.style.display = "block";
+
+            try {
+                // Requests pairing session directly from your backend instance
+                const response = await fetch(`/code?number=${number}`);
+                const data = await response.json();
+
+                if (data.code) {
+                    pairCode.innerText = data.code;
+                } else {
+                    pairCode.innerText = "ERROR";
+                    alert('Failed to retrieve code. Please try again!');
+                }
+            } catch (error) {
+                pairCode.innerText = "ERROR";
+                alert('An error occurred connecting to the server!');
+            }
+        }
+    </script>
 </body>
 </html>
