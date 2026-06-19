@@ -3,16 +3,27 @@ const {
     useMultiFileAuthState, 
     makeCacheableSignalKeyStore,
     DisconnectReason,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    delay
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const fs = require("fs");
 const path = require("path");
+const express = require("express");
+const cors = require("cors");
 
 // 1. IMPORT YOUR HANDLERS
 const settings = require('./settings');
 const { handleMessages } = require('./main'); // This is the engine
 const chatbot = require('./chatbot'); // LINE INAYO-IMPORT CHATBOT
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public')); // Serves the frontend from the 'public' folder
+
+const PORT = process.env.PORT || 3000;
+let globalSock = null; // Keeps a reference to the active socket connection
 
 async function startYASEENBot() {
     const sessionDir = path.join(__dirname, 'session');
@@ -24,7 +35,7 @@ async function startYASEENBot() {
     const sock = makeWASocket({
         version,
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: false, // Set to true if you want to scan QR instead of pairing
+        printQRInTerminal: false, 
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
@@ -32,16 +43,18 @@ async function startYASEENBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    // --- PAIRING CODE LOGIC ---
-    if (!sock.authState.creds.registered) {
+    globalSock = sock; // Assign to global reference for the API endpoint
+
+    // --- PAIRING CODE VIA TERMINAL (FALLBACK FOR OWNER) ---
+    if (!sock.authState.creds.registered && settings.OWNER_NUMBER) {
         const phoneNumber = settings.OWNER_NUMBER.replace(/[^0-9]/g, '');
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(phoneNumber);
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
-                console.log(`\n✅ YOUR PAIRING CODE: ${code}\n`);
+                console.log(`\n✅ OWNER PAIRING CODE: ${code}\n`);
             } catch (error) {
-                console.error("❌ Pairing Error:", error.message);
+                console.error("❌ Terminal Pairing Error:", error.message);
             }
         }, 5000);
     }
@@ -49,7 +62,6 @@ async function startYASEENBot() {
     // --- THE MESSAGE LISTENER ---
     sock.ev.on('messages.upsert', async (m) => {
         try {
-            // Umerekebisha hapa ili 'msg' isomwe kutoka kwenye 'm.messages[0]' inayokuja kutoka Baileys
             const msg = m.messages[0]; 
             if (!msg.message) return;
 
@@ -67,7 +79,6 @@ async function startYASEENBot() {
             }
 
             // --- CHATBOT HANDLER LOGIC ---
-            // Hapa tunapitisha text au caption kwenda kwenye chatbot engine
             const messageBody = msg.message.conversation || 
                                 msg.message.extendedTextMessage?.text || 
                                 msg.message.imageMessage?.caption || 
@@ -79,7 +90,6 @@ async function startYASEENBot() {
                 await chatbot(sock, chatId, msg, messageBody);
             }
 
-            // This line sends the message to main.js to check for .ping
             await handleMessages(sock, m); 
 
         } catch (err) {
@@ -103,5 +113,36 @@ async function startYASEENBot() {
 
     sock.ev.on("creds.update", saveCreds);
 }
+
+// --- EXPRESS API ENDPOINT FOR PAIRING SITE ---
+app.post('/api/pair', async (req, res) => {
+    let { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Namba ya simu inahitajika!' });
+
+    phone = phone.replace(/[^0-9]/g, '');
+
+    if (!globalSock) {
+        return res.status(500).json({ error: 'Bot bado haijawa tayari kwenye server. Subiri sekunde chache!' });
+    }
+
+    try {
+        if (!globalSock.authState.creds.registered) {
+            await delay(1500);
+            let code = await globalSock.requestPairingCode(phone);
+            code = code?.match(/.{1,4}/g)?.join('-') || code;
+            return res.json({ code: code });
+        } else {
+            return res.json({ error: 'Bot tayari imeshaunganishwa na akaunti nyingine!' });
+        }
+    } catch (error) {
+        console.error("API Pairing Error:", error);
+        return res.status(500).json({ error: 'Imeshindwa kuzalisha msimbo. Jaribu tena!' });
+    }
+});
+
+// Start the Express Server and the WhatsApp Bot
+app.listen(PORT, () => {
+    console.log(`🌍 Express Web Server running on port: ${PORT}`);
+});
 
 startYASEENBot();
