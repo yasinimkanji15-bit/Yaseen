@@ -5,13 +5,16 @@ module.exports = {
     category: "tools",
 
     execute: async (sock, chatId, message, args) => {
-        const text = args.join(" ").toLowerCase();
-        const isSilent = text.endsWith(' s') || text === 's';
-        const isEdit = text.endsWith(' e') || text === 'e';
+        // Tunatumia herufi ndogo kwenye text kwa ajili ya kucheki flags, lakini tunasafisha args vizuri
+        const fullText = args.join(" ");
+        const textLower = fullText.toLowerCase().trim();
+        
+        const isSilent = textLower.endsWith(' s') || textLower === 's';
+        const isEdit = textLower.endsWith(' e') || textLower === 'e';
 
         // 🟢 INSTRUCTION MANUAL WITH EXAMPLES
         const isReply = !!message.message?.extendedTextMessage?.contextInfo?.participant;
-        if (!isReply && !args[0] || args[0] === 'help') {
+        if (!isReply && (!args[0] || textLower === 'help')) {
             const manual = `👤 *Profile Picture Manual*
 
 Fetch high-resolution profile pictures instantly.
@@ -39,22 +42,32 @@ Fetch high-resolution profile pictures instantly.
 
         try {
             let target;
-            const cleanArgs = text.replace(/ [se]$| [se]$|^[se]$/i, "").trim();
+
+            // Kusafisha namba vizuri kwa kuondoa herufi za flags za "s" au "e" mwishoni
+            let cleanNumber = fullText.replace(/[se]$/i, "").trim();
+            // Ondoa alama zote zisizo namba kama +, -, nafasi n.k.
+            cleanNumber = cleanNumber.replace(/[^0-9]/g, "");
 
             // 1. Determine Target
             if (isReply) {
                 target = message.message.extendedTextMessage.contextInfo.participant;
-            } else if (cleanArgs && !isNaN(cleanArgs.replace(/[^0-9]/g, ''))) {
-                target = cleanArgs.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+            } else if (cleanNumber.length >= 7) { 
+                target = cleanNumber + "@s.whatsapp.net";
             } else if (!chatId.endsWith('@g.us')) {
                 target = chatId;
             } else {
                 target = message.key.participant || message.key.remoteJid;
             }
 
+            // Hakikisha target ina @s.whatsapp.net na haina makosa ya herufi
+            if (!target || !target.includes("@")) {
+                return await sock.sendMessage(chatId, { text: "❌ Invalid user or JID format." }, { quoted: message });
+            }
+
             // 2. Fetch the Image URL
             let ppUrl;
             try {
+                // Tofauti na mwanzo, tunaiomba Baileys ituletee picha ya juu (High-res)
                 ppUrl = await sock.profilePictureUrl(target, 'image');
             } catch (e) {
                 return await sock.sendMessage(chatId, { text: "❌ High-res photo unavailable or hidden by privacy settings." }, { quoted: message });
@@ -69,7 +82,7 @@ Fetch high-resolution profile pictures instantly.
                 image: { url: ppUrl }, 
                 caption: `👤 *Profile Picture:* @${target.split('@')[0]}\n*Mode:* ${isEdit ? 'Spy 🕶' : isSilent ? 'Silent 🤫' : 'Public'}`,
                 mentions: [target]
-            });
+            }, { quoted: message });
 
             // 5. Handle Feedback
             if (isEdit) {
@@ -85,7 +98,7 @@ Fetch high-resolution profile pictures instantly.
 
         } catch (err) {
             console.error("GetPP Error:", err);
-            await sock.sendMessage(chatId, { text: "❌ Error: Could not retrieve profile picture." });
+            await sock.sendMessage(chatId, { text: "❌ Error: Could not retrieve profile picture." }, { quoted: message });
         }
     }
 };
