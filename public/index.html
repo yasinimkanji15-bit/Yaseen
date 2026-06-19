@@ -33,7 +33,6 @@
             border: 1px solid #222e35;
         }
 
-        /* Catbox Logo Image Styling */
         .logo-container {
             margin-bottom: 20px;
         }
@@ -116,7 +115,6 @@
             transform: translateY(1px);
         }
 
-        /* Pairing Code Display Section */
         .code-display {
             margin-top: 25px;
             padding: 15px;
@@ -143,9 +141,9 @@
 <body>
 
     <div class="card">
-        <!-- Fetches your custom logo straight from Catbox -->
         <div class="logo-container">
-            <img src="https://files.catbox.moe/038kef.jpg" alt="YAS-TECH">
+            <!-- WEKA LINK YAKO YA CATBOX HAPA CHINI TENA -->
+            <img src="https://files.catbox.moe/u1uodm.jpg" alt="YAS-TECH">
         </div>
 
         <h1>YAS-TECH PAIRING</h1>
@@ -158,7 +156,6 @@
 
         <button onclick="getPairingCode()">Generate Code</button>
 
-        <!-- Hidden container that toggles visible when fetching code -->
         <div class="code-display" id="codeBox">
             <div class="code-title">YOUR PAIRING CODE:</div>
             <div class="code-value" id="pairCode">--------</div>
@@ -180,12 +177,22 @@
             codeBox.style.display = "block";
 
             try {
-                // Requests pairing session directly from your backend instance
-                const response = await fetch(`/code?number=${number}`);
+                // Inatuma POST request kwenda kwenye endpoint sahihi ya /api/pair
+                const response = await fetch('/api/pair', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone: number })
+                });
+
                 const data = await response.json();
 
                 if (data.code) {
                     pairCode.innerText = data.code;
+                } else if (data.error) {
+                    pairCode.innerText = "ERROR";
+                    alert(data.error);
                 } else {
                     pairCode.innerText = "ERROR";
                     alert('Failed to retrieve code. Please try again!');
