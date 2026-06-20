@@ -23,13 +23,23 @@ app.use(express.json());
 app.use(express.static('public')); 
 
 const PORT = process.env.PORT || 3000;
-let globalSock = null; 
 
-async function startYASEENBot() {
-    const sessionDir = path.join(__dirname, 'session');
-    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
+// Object ya kuhifadhi socket za watu tofauti waliounganishwa
+const activeSessions = {}; 
 
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+// Hakikisha folda kuu la sessions lipo
+const sessionsMainDir = path.join(__dirname, 'sessions');
+if (!fs.existsSync(sessionsMainDir)) fs.mkdirSync(sessionsMainDir);
+
+// Export hii function ili faili la command (pair.js) liweze kuitumia pia
+async function startUserBot(phoneNumber) {
+    // Kama tayari kuna socket ya namba hii na iko hai, usiwashe upya
+    if (activeSessions[phoneNumber]) return activeSessions[phoneNumber];
+
+    const userSessionDir = path.join(sessionsMainDir, phoneNumber);
+    if (!fs.existsSync(userSessionDir)) fs.mkdirSync(userSessionDir);
+
+    const { state, saveCreds } = await useMultiFileAuthState(userSessionDir);
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
@@ -43,21 +53,8 @@ async function startYASEENBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    globalSock = sock; 
-
-    // --- PAIRING CODE VIA TERMINAL (FALLBACK FOR OWNER) ---
-    if (!sock.authState.creds.registered && settings.OWNER_NUMBER) {
-        const phoneNumber = settings.OWNER_NUMBER.replace(/[^0-9]/g, '');
-        setTimeout(async () => {
-            try {
-                let code = await sock.requestPairingCode(phoneNumber);
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
-                console.log(`\n✅ OWNER PAIRING CODE: ${code}\n`);
-            } catch (error) {
-                console.error("❌ Terminal Pairing Error:", error.message);
-            }
-        }, 5000);
-    }
+    // Hifadhi socket kwenye kumbukumbu kwa ajili ya namba hii
+    activeSessions[phoneNumber] = sock; 
 
     // --- THE MESSAGE LISTENER ---
     sock.ev.on('messages.upsert', async (m) => {
@@ -93,56 +90,85 @@ async function startYASEENBot() {
             await handleMessages(sock, m); 
 
         } catch (err) {
-            console.error("Handler Error:", err);
+            console.error(`Handler Error for ${phoneNumber}:`, err);
         }
     });
 
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === "open") {
-            console.log(`🎉 YAS-TECH IS LIVE!`);
-            await sock.sendMessage(sock.user.id, { text: settings.WELCOME_MESSAGE });
+            console.log(`🎉 YAS-TECH IS LIVE FOR NUMBER: ${phoneNumber}`);
+            try {
+                await sock.sendMessage(sock.user.id, { text: settings.WELCOME_MESSAGE || "YAS-TECH Connected Successfully!" });
+            } catch (e) {
+                console.error("Failed to send welcome message:", e.message);
+            }
         }
         if (connection === "close") {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason !== DisconnectReason.loggedOut) {
-                startYASEENBot();
+                // Kama hajalaunch out, iwashe upya namba hiyo tu
+                delete activeSessions[phoneNumber];
+                startUserBot(phoneNumber);
+            } else {
+                // Kama amelogout kabisa, futa data zake
+                console.log(`🔒 Session logged out for ${phoneNumber}. Cleaning files...`);
+                delete activeSessions[phoneNumber];
+                try {
+                    fs.rmSync(userSessionDir, { recursive: true, force: true });
+                } catch (e) {
+                    console.error("Session cleanup error:", e.message);
+                }
             }
         }
     });
 
     sock.ev.on("creds.update", saveCreds);
+    return sock;
 }
 
-// --- EXPRESS API ENDPOINT FOR PAIRING SITE ---
+// --- INAWASHA BOT ZOTE ZILIZOKUWA ACTIVE ZIKIWASHWA UPYA SERVER ---
+function preloadExistingSessions() {
+    if (fs.existsSync(sessionsMainDir)) {
+        const folders = fs.readdirSync(sessionsMainDir);
+        folders.forEach(folder => {
+            if (fs.lstatSync(path.join(sessionsMainDir, folder)).isDirectory() && folder.match(/^\d+$/)) {
+                console.log(`Active session found for number: ${folder}. Starting...`);
+                startUserBot(folder);
+            }
+        });
+    }
+}
+
+// --- EXPRESS API ENDPOINT FOR MULTI-PAIRING ---
 app.post('/api/pair', async (req, res) => {
     let { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone number is required!' });
 
     phone = phone.replace(/[^0-9]/g, '');
 
-    if (!globalSock) {
-        return res.status(500).json({ error: 'Bot server is not ready yet. Please wait a few seconds!' });
-    }
-
     try {
-        if (!globalSock.authState.creds.registered) {
-            await delay(1500);
-            let code = await globalSock.requestPairingCode(phone);
+        const sock = await startUserBot(phone);
+        await delay(2000);
+
+        if (!sock.authState.creds.registered) {
+            let code = await sock.requestPairingCode(phone);
             code = code?.match(/.{1,4}/g)?.join('-') || code;
             return res.json({ code: code });
         } else {
-            return res.json({ error: 'Bot is already connected to another account!' });
+            return res.status(400).json({ error: `The number ${phone} is already linked and running on this server!` });
         }
     } catch (error) {
-        console.error("API Pairing Error:", error);
+        console.error(`API Pairing Error for ${phone}:`, error);
         return res.status(500).json({ error: 'Failed to generate code. Please try again!' });
     }
 });
 
-// Start the Express Server and the WhatsApp Bot
+// Start the Express Server
 app.listen(PORT, () => {
-    console.log(`🌍 Express Web Server running on port: ${PORT}`);
+    console.log(`🌍 Multi-Bot Web Server running on port: ${PORT}`);
+    preloadExistingSessions(); 
 });
 
-startYASEENBot();
+// Tunai-export hii function ili amri ya WhatsApp pair iweze kuifikia
+module.exports = { startUserBot };
