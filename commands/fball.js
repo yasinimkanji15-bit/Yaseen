@@ -1,123 +1,282 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
 
 module.exports = {
     name: "fball",
-    alias: ["football", "ball", "uefa"],
-    description: "Get live football tables and the latest 2026 news.",
+    alias: [
+        "football", "ball", "uefa", 
+        "fball_menu", "fball_standings", "fball_scorers",
+        "fball_cat_int_t", "fball_cat_top_t", "fball_cat_oth_t",
+        "fball_cat_int_s", "fball_cat_top_s", "fball_cat_oth_s",
+        "fball_pl_t", "fball_pd_t", "fball_sa_t", "fball_bl1_t", "fball_fl1_t", "fball_cl_t",
+        "fball_wc_t", "fball_ded_t", "fball_bsa_t", "fball_elc_t", "fball_ppl_t", "fball_ec_t",
+        "fball_pl_s", "fball_pd_s", "fball_sa_s", "fball_bl1_s", "fball_fl1_s", "fball_cl_s",
+        "fball_wc_s", "fball_ded_s", "fball_bsa_s", "fball_elc_s", "fball_ppl_s", "fball_ec_s"
+    ],
+    description: "Get live football tables and top scorers for ALL 12 available leagues via structured buttons.",
     category: "sports",
 
-    execute: async (sock, chatId, message, args) => {
+    execute: async (sock, chatId, message, args, { pushname }) => {
         const from = chatId;
-        const prefix = global.botConfig.prefix || ".";
-        const arg = args[0] ? args[0].toLowerCase() : "";
-        const apiKey = 'dcd720a6f1914e2d9dba9790c188c08c';
+        const msgStructure = message.message;
+        const { sendButtons } = require('gifted-btns');
 
-        // 🟢 HELP & MANUAL
-        if (!args[0] || args[0] === 'help') {
-            const manual = `⚽ *YASEEN-ＭＤ ＦＯＯＴＢＡＬＬ*
+        // --- 🔑 TOKENI YAKO TOKA SCREENSHOT ---
+        const API_KEY = '7c2a0852e6374782b9cb4235fef15bb4'; 
+        const apiHeaders = { 'X-Auth-Token': API_KEY };
 
-✦═════════◆═════════✦
-✨ *HOW TO USE:*
+        // Database ya ligi zote 12 zilizopo kwenye picha yako
+        const LEAGUE_IDS = {
+            wc: 'WC',       // FIFA World Cup
+            cl: 'CL',       // UEFA Champions League
+            bl1: 'BL1',     // Bundesliga
+            ded: 'DED',     // Eredivisie
+            bsa: 'BSA',     // Campeonato Brasileiro Série A
+            pd: 'PD',       // La Liga
+            fl1: 'FL1',     // Ligue 1
+            elc: 'ELC',     // Championship
+            ppl: 'PPL',     // Primeira Liga
+            ec: 'EC',       // European Championship
+            sa: 'SA',       // Serie A
+            pl: 'PL'        // Premier League
+        };
 
-1️⃣ *League Tables:*
-> Type \`${prefix}fball tpl\` (Premier League)
-> Type \`${prefix}fball tlaliga\` (La Liga)
-> Type \`${prefix}fball tseriea\` (Serie A)
+        // Nyakua maandishi kutoka kwenye vitufe kwa usalama
+        const incomingText = (
+            msgStructure?.conversation || 
+            msgStructure?.extendedTextMessage?.text || 
+            msgStructure?.buttonsResponseMessage?.selectedButtonId || 
+            msgStructure?.templateButtonReplyMessage?.selectedId ||
+            msgStructure?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
+            ""
+        ).trim().toLowerCase();
 
-2️⃣ *Latest News:*
-> Type \`${prefix}fball news\`
-> Type \`${prefix}fball [topic]\`
-✦═════════◆═════════✦
+        let arg = args[0] ? args[0].toLowerCase() : "";
 
-_© 2026 YASEEN Laporte_`;
-            return await sock.sendMessage(from, { 
-                image: { url: "https://files.catbox.moe/yb43pn.jpg" }, 
-                caption: manual 
-            }, { quoted: message });
+        // Kupanga upya 'arg' kulingana na kitufe kilichobofya
+        if (/standings/i.test(incomingText)) arg = 'standings';
+        else if (/scorers/i.test(incomingText)) arg = 'scorers';
+        // Kutambua makundi (Categories)
+        else if (/cat_int_t/i.test(incomingText)) arg = 'cat_int_t';
+        else if (/cat_top_t/i.test(incomingText)) arg = 'cat_top_t';
+        else if (/cat_oth_t/i.test(incomingText)) arg = 'cat_oth_t';
+        else if (/cat_int_s/i.test(incomingText)) arg = 'cat_int_s';
+        else if (/cat_top_s/i.test(incomingText)) arg = 'cat_top_s';
+        else if (/cat_oth_s/i.test(incomingText)) arg = 'cat_oth_s';
+        // Kutambua ligi maalum zilizobofywa
+        const shortCodes = Object.keys(LEAGUE_IDS);
+        for (const code of shortCodes) {
+            if (new RegExp(`${code}_t`, 'i').test(incomingText)) arg = `${code}_t`;
+            if (new RegExp(`${code}_s`, 'i').test(incomingText)) arg = `${code}_s`;
         }
 
-        // 🔵 LIVE LEAGUE TABLES
-        if (arg.startsWith('t')) {
-            await sock.sendMessage(from, { react: { text: '📊', key: message.key } });
-            let url = "";
-            let leagueTitle = "";
+        // ====================================================
+        // LEVEL 1: MENU KUU (STANDINGS / TOP SCORERS)
+        // ====================================================
+        if (!arg || arg === 'menu' || arg === 'help') {
+            await sock.sendMessage(from, { react: { text: '⚽', key: message.key } });
+            const mainMenuText = `*⚽ YASEEN-MD FOOTBALL ZONE 2026*\n\nHello *${pushname}*, select an option below to access the full football database:`;
+            return await sendButtons(sock, from, {
+                title: '┏━━━〔 YASEEN FOOTBALL MENU 〕━━━┓',
+                text: mainMenuText,
+                footer: '© POWERED BY YASEEN-MD',
+                aimode: false,
+                buttons: [
+                    { id: 'fball_standings', text: '📊 Live Standings' },
+                    { id: 'fball_scorers', text: '🔥 Top Scorers' }
+                ]
+            });
+        }
 
-            if (arg === 'tlaliga') {
-                url = "https://www.bbc.com/sport/football/spanish-la-liga/table";
-                leagueTitle = "LA LIGA STANDINGS";
-            } else if (arg === 'tpl') {
-                url = "https://www.bbc.com/sport/football/premier-league/table";
-                leagueTitle = "PREMIER LEAGUE STANDINGS";
-            } else if (arg === 'tseriea') {
-                url = "https://www.bbc.com/sport/football/italian-serie-a/table";
-                leagueTitle = "SERIE A STANDINGS";
-            } else {
-                return await sock.sendMessage(from, { text: "❌ League not supported. Try: tlaliga, tpl, or tseriea." });
-            }
+        // ====================================================
+        // LEVEL 2(A): SUB-MENU KWA AJILI YA STANDINGS
+        // ====================================================
+        if (arg === 'standings') {
+            await sock.sendMessage(from, { react: { text: '📊', key: message.key } });
+            return await sendButtons(sock, from, {
+                title: '┏━━━〔 STANDINGS CATEGORIES 〕━━━┓',
+                text: `*📊 LIVE STANDINGS ROUTER*\n\nSelect the zone of leagues you want to view:`,
+                footer: '© POWERED BY YASEEN-MD',
+                aimode: false,
+                buttons: [
+                    { id: 'fball_cat_int_t', text: '🌍 International & Cups' },
+                    { id: 'fball_cat_top_t', text: '⭐ Top Euro Leagues' },
+                    { id: 'fball_cat_oth_t', text: '🔮 Other Elite Leagues' }
+                ]
+            });
+        }
+
+        // ====================================================
+        // LEVEL 2(B): SUB-MENU KWA AJILI YA TOP SCORERS
+        // ====================================================
+        if (arg === 'scorers') {
+            await sock.sendMessage(from, { react: { text: '🔥', key: message.key } });
+            return await sendButtons(sock, from, {
+                title: '┏━━━〔 SCORERS CATEGORIES 〕━━━┓',
+                text: `*🔥 LIVE SCORERS ROUTER*\n\nSelect the zone to view top goal scorers:`,
+                footer: '© POWERED BY YASEEN-MD',
+                aimode: false,
+                buttons: [
+                    { id: 'fball_cat_int_s', text: '🌍 International & Cups' },
+                    { id: 'fball_cat_top_s', text: '⭐ Top Euro Leagues' },
+                    { id: 'fball_cat_oth_s', text: '🔮 Other Elite Leagues' }
+                ]
+            });
+        }
+
+        // ====================================================
+        // LEVEL 3: KUGANGAWANYA VIFUNGO VYA LIGI KULINGANA NA MAKUNDI
+        // ====================================================
+        
+        // --- TABLES CATEGORIES ---
+        if (arg === 'cat_int_t') {
+            return await sendButtons(sock, from, {
+                title: '🌍 INTERNATIONAL TABLES',
+                text: 'Select an international cup tournament table:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_wc_t', text: '🏆 World Cup' },
+                    { id: 'fball_cl_t', text: '🇪🇺 Champions League' },
+                    { id: 'fball_ec_t', text: '🇪🇺 Euro Championship' }
+                ]
+            });
+        }
+        if (arg === 'cat_top_t') {
+            return await sendButtons(sock, from, {
+                title: '⭐ TOP EUROPE TABLES',
+                text: 'Select a top tier European league table:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_pl_t', text: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
+                    { id: 'fball_pd_t', text: '🇪🇸 La Liga' },
+                    { id: 'fball_sa_t', text: '🇮🇹 Serie A' },
+                    { id: 'fball_bl1_t', text: '🇩🇪 Bundesliga' },
+                    { id: 'fball_fl1_t', text: '🇫🇷 Ligue 1' }
+                ]
+            });
+        }
+        if (arg === 'cat_oth_t') {
+            return await sendButtons(sock, from, {
+                title: '🔮 OTHER LEAGUE TABLES',
+                text: 'Select other elite league tables available:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_ded_t', text: '🇳🇱 Eredivisie' },
+                    { id: 'fball_bsa_t', text: '🇧🇷 Série A (Brazil)' },
+                    { id: 'fball_elc_t', text: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship' },
+                    { id: 'fball_ppl_t', text: '🇵🇹 Primeira Liga' }
+                ]
+            });
+        }
+
+        // --- SCORERS CATEGORIES ---
+        if (arg === 'cat_int_s') {
+            return await sendButtons(sock, from, {
+                title: '🌍 INTERNATIONAL SCORERS',
+                text: 'Select an international cup tournament to view scorers:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_wc_s', text: '🏆 World Cup' },
+                    { id: 'fball_cl_s', text: '🇪🇺 Champions League' },
+                    { id: 'fball_ec_s', text: '🇪🇺 Euro Championship' }
+                ]
+            });
+        }
+        if (arg === 'cat_top_s') {
+            return await sendButtons(sock, from, {
+                title: '⭐ TOP EUROPE SCORERS',
+                text: 'Select a top tier European league to view scorers:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_pl_s', text: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
+                    { id: 'fball_pd_s', text: '🇪🇸 La Liga' },
+                    { id: 'fball_sa_s', text: '🇮🇹 Serie A' },
+                    { id: 'fball_bl1_s', text: '🇩🇪 Bundesliga' },
+                    { id: 'fball_fl1_s', text: '🇫🇷 Ligue 1' }
+                ]
+            });
+        }
+        if (arg === 'cat_oth_s') {
+            return await sendButtons(sock, from, {
+                title: '🔮 OTHER LEAGUE SCORERS',
+                text: 'Select other elite leagues to view scorers:',
+                footer: '© YASEEN-MD', buttons: [
+                    { id: 'fball_ded_s', text: '🇳🇱 Eredivisie' },
+                    { id: 'fball_bsa_s', text: '🇧🇷 Série A (Brazil)' },
+                    { id: 'fball_elc_s', text: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship' },
+                    { id: 'fball_ppl_s', text: '🇵🇹 Primeira Liga' }
+                ]
+            });
+        }
+
+        // ====================================================
+        // LEVEL 4(A): FETCH LIVE STANDINGS FROM API
+        // ====================================================
+        if (arg.endsWith('_t')) {
+            await sock.sendMessage(from, { react: { text: '⏳', key: message.key } });
+            const leagueKey = arg.replace('_t', ''); 
+            const leagueCode = LEAGUE_IDS[leagueKey];
 
             try {
-                const { data } = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-                const $ = cheerio.load(data);
-                let tableRows = "";
+                const response = await axios.get(`https://api.football-data.org/v4/competitions/${leagueCode}/standings`, { headers: apiHeaders });
+                
+                // Kushughulikia mfumo wa mashindano ya makundi kama CL au WC
+                let standingsData;
+                if (response.data.standings[0]?.table) {
+                    standingsData = response.data.standings[0].table;
+                } else if (response.data.standings[0]?.group) {
+                    // Kama ni hatua ya makundi, tunachukua tu mchanganyiko wa kwanza kurahisisha ujumbe
+                    standingsData = response.data.standings[0].table;
+                }
 
-                $('tbody tr').slice(0, 10).each((i, el) => {
-                    const rank = $(el).find('td').eq(0).text().trim() || (i + 1);
-                    const team = $(el).find('td').eq(2).text().trim() || $(el).find('th').text().trim();
-                    const points = $(el).find('td').last().text().trim();
-                    if (team) tableRows += `${rank}. ${team} - ${points} pts\n`;
+                if (!standingsData) return await sock.sendMessage(from, { text: "❌ Standings data is currently not available for this league stage." });
+
+                const leagueName = response.data.competition.name.toUpperCase();
+                let tableRows = "";
+                
+                standingsData.slice(0, 12).forEach((row) => {
+                    tableRows += `${row.position}. ${row.team.shortName || row.team.name} - ${row.points} pts (W:${row.won} D:${row.draw} L:${row.lost})\n`;
                 });
 
-                let msg = `📊 *${leagueTitle}*\n`;
-                msg += `_Real-time 2026 Standings_\n\n`;
+                let msg = `📊 *${leagueName} STANDINGS*\n`;
+                msg += `_Real-time Live API Data 2026_\n\n`;
                 msg += `> ${tableRows.replace(/\n/g, "\n> ")}\n\n`;
-                msg += `_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴀᴅʀɪɴ-ᴍᴅ_`;
+                msg += `_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʏᴀꜱᴇᴇɴ-ᴍᴅ_`;
 
                 return await sock.sendMessage(from, { text: msg }, { quoted: message });
             } catch (e) {
-                return await sock.sendMessage(from, { text: "❌ Error fetching the table. Pitch is frozen!" });
+                console.error(e);
+                return await sock.sendMessage(from, { text: "❌ API Server Error: Ensure request limit is not exceeded or competition has active standings." });
             }
         }
 
-        // 🔴 NEWS LOGIC (AUTO-CLEANED)
-        await sock.sendMessage(from, { react: { text: '⚽', key: message.key } });
-        try {
-            const query = args.join(" ") === "news" ? "football" : args.join(" ");
-            const searchUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`;
-            const { data: searchData } = await axios.get(searchUrl);
-            const articles = searchData.articles;
+        // ====================================================
+        // LEVEL 4(B): FETCH LIVE SCORERS FROM API
+        // ====================================================
+        if (arg.endsWith('_s')) {
+            await sock.sendMessage(from, { react: { text: '🎯', key: message.key } });
+            const leagueKey = arg.replace('_s', ''); 
+            const leagueCode = LEAGUE_IDS[leagueKey];
 
-            if (!articles || articles.length === 0) return sock.sendMessage(from, { text: "❌ No news found." });
+            try {
+                const response = await axios.get(`https://api.football-data.org/v4/competitions/${leagueCode}/scorers`, { headers: apiHeaders });
+                const scorers = response.data.scorers;
+                const leagueName = response.data.competition.name.toUpperCase();
 
-            let fballReport = `⚽ *YASEEN-ＭＤ ＦＯＯＴＢＡＬＬ*\n\n`;
-
-            for (let i = 0; i < articles.length; i++) {
-                const art = articles[i];
-                let deepText = "";
-
-                try {
-                    const { data: pageData } = await axios.get(art.url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 5000 });
-                    const $ = cheerio.load(pageData);
-                    $('p').slice(0, 2).each((_, el) => {
-                        // 🛠️ THE CLEANER: Fixes gaps and extra spaces
-                        let cleanTxt = $(el).text().replace(/\s+/g, ' ').trim(); 
-                        if (cleanTxt.length > 40) deepText += `> ${cleanTxt}\n>\n`;
-                    });
-                } catch (e) {
-                    deepText = `> ${art.description.replace(/\s+/g, ' ').trim()}\n`;
+                if (!scorers || scorers.length === 0) {
+                    return await sock.sendMessage(from, { text: `❌ No live scorers data recorded for ${leagueName} right now.` });
                 }
 
-                fballReport += `*${i + 1}. ${art.title.toUpperCase()}*\n`;
-                fballReport += `${deepText}───◆───\n\n`;
+                let scorersRows = "";
+                scorers.slice(0, 10).forEach((row, index) => {
+                    const teamName = row.team?.shortName || row.team?.name || "Unknown";
+                    scorersRows += `${index + 1}. ${row.player.name} (${teamName}) - ${row.goals} Goals\n`;
+                });
+
+                let msg = `🔥 *${leagueName} TOP SCORERS*\n`;
+                msg += `_Live API Golden Boot Race 2026_\n\n`;
+                msg += `> ${scorersRows.replace(/\n/g, "\n> ")}\n\n`;
+                msg += `_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʏᴀꜱᴇᴇɴ-ᴍᴅ_`;
+
+                return await sock.sendMessage(from, { text: msg }, { quoted: message });
+            } catch (e) {
+                console.error(e);
+                return await sock.sendMessage(from, { text: "❌ API Server Error: Failed to fetch live scorers." });
             }
-
-            await sock.sendMessage(from, { 
-                text: fballReport + `_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴍᴀᴅʀɪɴ-ᴍᴅ_`,
-                contextInfo: { externalAdReply: { title: "2026 FOOTBALL HUB", mediaType: 1, thumbnailUrl: articles[0].urlToImage }}
-            }, { quoted: message });
-
-        } catch (err) {
-            await sock.sendMessage(from, { text: "❌ Error connecting to the news server." });
         }
     }
 };
