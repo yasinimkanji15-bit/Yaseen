@@ -2,7 +2,7 @@ const StephUI = require('stephtech-ui');
 
 module.exports = {
     name: "search",
-    alias: ["ytsearch", "tafuta"],
+    alias: ["ytsearch", "tafuta","eg1"],
     description: "Search for videos and display them using a beautiful carousel layout.",
     category: "tools",
 
