@@ -116,7 +116,7 @@ const handleMessages = async (sock, m) => {
         } else if (mtype === 'templateButtonReplyMessage') {
             body = msg.message.templateButtonReplyMessage.selectedId;
             isButton = true; 
-        } else if (mtype === 'interactiveResponseMessage') {
+                } else if (mtype === 'interactiveResponseMessage') {
             isButton = true; 
             const interactiveData = msg.message.interactiveResponseMessage.nativeFlowResponseMessage?.paramsJson;
             
@@ -153,13 +153,27 @@ const handleMessages = async (sock, m) => {
             // --- 🎮 ROUTE THE MULTIPLE CHOICE ANSWER SELECTIONS ---
             if (body.startsWith('fquiz_ans_opt_')) {
                 const contextInfo = msg.message.interactiveResponseMessage.contextInfo;
-                const originalMsgId = contextInfo?.stanzaId;
-                const sessionKey = `${chatId}_${originalMsgId}`;
-                const activeQuiz = global.footballQuizSessions?.[sessionKey];
+                // Njia mbadala ya uhakika ya kupata ID ya card iliyobonyezwa
+                const originalMsgId = contextInfo?.stanzaId || msg.key.id; 
+                
+                // Tafuta session inayofanana kwenye kumbukumbu
+                let sessionKey = `${chatId}_${originalMsgId}`;
+                let activeQuiz = global.footballQuizSessions?.[sessionKey];
+
+                // Kama haikuonekana kwa stanzaId, tafuta iliyopo ya chat hiyo
+                if (!activeQuiz) {
+                    const keys = Object.keys(global.footballQuizSessions || {});
+                    const foundKey = keys.find(k => k.startsWith(`${chatId}_`));
+                    if (foundKey) {
+                        sessionKey = foundKey;
+                        activeQuiz = global.footballQuizSessions[sessionKey];
+                    }
+                }
 
                 if (activeQuiz && !activeQuiz.answered) {
                     activeQuiz.answered = true;
 
+                    // Futa card mara moja baada ya kubonyezwa
                     try {
                         await sock.sendMessage(chatId, { delete: activeQuiz.quizMessageKey });
                     } catch (err) { console.error("Failed to delete button quiz card:", err); }
@@ -182,25 +196,6 @@ const handleMessages = async (sock, m) => {
                     delete global.footballQuizSessions[sessionKey];
                     return;
                 }
-            }
-        }
-
-        // ✅ If it's a button, process it as a command
-        if (isButton && body) {
-            const prefix = global.botConfig?.prefix || ".";
-            const cleanBody = body.startsWith(prefix) ? body.slice(prefix.length) : body;
-            const cmdParts = cleanBody.split(/ +/);
-            const cmdName = cmdParts.shift().toLowerCase();
-            const args = cmdParts;
-
-            const finalCmd = aliases.get(cmdName) || cmdName;
-            const command = commands.get(finalCmd);
-
-            if (command) {
-                await command.execute(sock, chatId, msg, args, { 
-                    pushname: msg.pushName || "User", isOwner, sender, body 
-                });
-                return;
             }
         }
 
