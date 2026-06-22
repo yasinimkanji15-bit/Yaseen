@@ -399,42 +399,39 @@ if (msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.conversation?.i
         // ==========================================
         // 🎮 FOOTBALL QUIZ OPTION LISTENER
         // ==========================================
-        if (global.footballQuizSessions?.[chatId]) {
-            const activeQuiz = global.footballQuizSessions[chatId];
-            const cleanText = body.trim();
+        if (body.startsWith('fquiz_ans_opt_')) {
+                const contextInfo = msg.message.interactiveResponseMessage.contextInfo;
+                const originalMsgId = contextInfo?.stanzaId;
+                const sessionKey = `${chatId}_${originalMsgId}`;
+                const activeQuiz = global.footballQuizSessions?.[sessionKey];
 
-            // Check if input is a valid number between 1 and 4
-            if (!isNaN(cleanText) && parseInt(cleanText) >= 1 && parseInt(cleanText) <= 4 && !activeQuiz.answered) {
-                activeQuiz.answered = true;
+                if (activeQuiz && !activeQuiz.answered) {
+                    activeQuiz.answered = true;
 
-                // Delete the original question text
-                try {
-                    await sock.sendMessage(chatId, { delete: activeQuiz.quizMessageKey });
-                } catch (err) { console.error("Failed to delete text quiz:", err); }
+                    try {
+                        await sock.sendMessage(chatId, { delete: activeQuiz.quizMessageKey });
+                    } catch (err) { console.error("Failed to delete button quiz card:", err); }
 
-                const chosenIndex = parseInt(cleanText) - 1;
-                const chosenAnswer = activeQuiz.options[chosenIndex];
-                const mentionTag = `@${sender.split('@')[0]}`;
+                    const chosenIndex = parseInt(body.replace('fquiz_ans_opt_', ''));
+                    const chosenAnswer = activeQuiz.options[chosenIndex];
+                    const mentionTag = `@${sender.split('@')[0]}`;
 
-                if (chosenAnswer === activeQuiz.correctAnswer) {
-                    await sock.sendMessage(chatId, { react: { text: '🎉', key: msg.key } });
-                    const successMsg = `🎉 *CONGRATULATIONS ${mentionTag}!* \n\nExcellent football knowledge! You got it right.\n\n*Question:* _${activeQuiz.question}_\n*Your Answer:* ${cleanText} (CORRECT!)`;
-                    await sock.sendMessage(chatId, { text: successMsg, mentions: [sender] });
-                } else {
-                    await sock.sendMessage(chatId, { react: { text: '❌', key: msg.key } });
-                    
-                    // Capitalize first letter of correct answer for output presentation
-                    const formattedAnswer = activeQuiz.correctAnswer.charAt(0).toUpperCase() + activeQuiz.correctAnswer.slice(1);
-                    const failedMsg = `❌ *Incorrect choice!* ${mentionTag}\n\nThe answer to the question: _"${activeQuiz.question}"_ is *${formattedAnswer}*`;
-                    await sock.sendMessage(chatId, { text: failedMsg, mentions: [sender] });
+                    if (chosenAnswer === activeQuiz.correctAnswer) {
+                        await sock.sendMessage(chatId, { react: { text: '🎉', key: msg.key } });
+                        const successMsg = `🎉 *CONGRATULATIONS ${mentionTag}!* \n\nExcellent football knowledge! You got it right.\n\n*Question:* _${activeQuiz.question}_\n*Your Answer:* ${chosenAnswer.toUpperCase()} (CORRECT!)`;
+                        await sock.sendMessage(chatId, { text: successMsg, mentions: [sender] });
+                    } else {
+                        await sock.sendMessage(chatId, { react: { text: '❌', key: msg.key } });
+                        const formattedAnswer = activeQuiz.correctAnswer.charAt(0).toUpperCase() + activeQuiz.correctAnswer.slice(1);
+                        const failedMsg = `❌ *Incorrect choice!* ${mentionTag}\n\nThe answer to the question: _"${activeQuiz.question}"_ is *${formattedAnswer}*`;
+                        await sock.sendMessage(chatId, { text: failedMsg, mentions: [sender] });
+                    }
+
+                    delete global.footballQuizSessions[sessionKey];
+                    return;
                 }
-
-                // Clean up the session completely
-                delete global.footballQuizSessions[chatId];
-                return; // Stop processing further features for this specific message
             }
         }
-
         
         // --- 🟢 COMMANDS ---
         const isPublic = global.botConfig.isPublic === true;
